@@ -1,7 +1,9 @@
-
 import os
 import base64
+import asyncio
+import threading
 import aiohttp
+from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 
@@ -9,19 +11,32 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
 
+web = Flask(__name__)
+
+@web.route("/")
+def home():
+    return "✅ Web Demo Generator is running"
+
+@web.route("/health")
+def health():
+    return "OK"
+
+def run_web():
+    port = int(os.getenv("PORT", 10000))
+    web.run(host="0.0.0.0", port=port)
+
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
-
 
 async def create_repo(repo_name: str):
     url = "https://api.github.com/user/repos"
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
     payload = {
         "name": repo_name,
-        "auto_init": False,
+        "auto_init": True,
         "private": False
     }
 
@@ -29,11 +44,10 @@ async def create_repo(repo_name: str):
         async with session.post(url, headers=headers, json=payload) as resp:
             return await resp.json()
 
-
 async def upload_file(repo_name: str, file_content: str):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/contents/index.html"
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
 
@@ -41,18 +55,18 @@ async def upload_file(repo_name: str, file_content: str):
 
     payload = {
         "message": "Upload demo file",
-        "content": encoded
+        "content": encoded,
+        "branch": "main"
     }
 
     async with aiohttp.ClientSession() as session:
         async with session.put(url, headers=headers, json=payload) as resp:
             return await resp.json()
 
-
 async def enable_pages(repo_name: str):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/pages"
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
 
@@ -67,11 +81,9 @@ async def enable_pages(repo_name: str):
         async with session.post(url, headers=headers, json=payload) as resp:
             return await resp.json()
 
-
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("HTML/CSS/JS kod yuboring, men uni jonli saytga aylantirib beraman.")
-
+    await message.answer("✅ HTML fayl yuboring, men uni jonli demo saytga aylantirib beraman.")
 
 @dp.message()
 async def handle_file(message: types.Message):
@@ -81,7 +93,7 @@ async def handle_file(message: types.Message):
     file = await bot.get_file(message.document.file_id)
     file_path = file.file_path
     file_bytes = await bot.download_file(file_path)
-    content = file_bytes.read().decode()
+    content = file_bytes.read().decode("utf-8", errors="ignore")
 
     repo_name = f"demo-{message.from_user.id}"
 
@@ -97,7 +109,9 @@ async def handle_file(message: types.Message):
     link = f"https://{GITHUB_USERNAME}.github.io/{repo_name}/"
     await message.answer(f"✅ Tayyor!\n\nSizning demo saytingiz:\n{link}")
 
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(dp.start_polling(bot))
+    threading.Thread(target=run_web, daemon=True).start()
+    asyncio.run(main())
