@@ -4,7 +4,7 @@ from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-BOT_TOKEN = os.getenv("8948309691:AAFajuDxUjVEYW4kNrvzvxbuVsXusEh0oHc")
+BOT_TOKEN = os.getenv("8948309691:AAE2-pC4LpI9_8083doVGBad-Ih83z0f7ec")
 
 web_app = Flask(__name__)
 
