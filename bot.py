@@ -1,3 +1,4 @@
+
 import os
 import base64
 import aiohttp
@@ -6,7 +7,7 @@ from aiogram.filters import Command
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_USERNAME = os.getenv("muminkuziev")
+GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
