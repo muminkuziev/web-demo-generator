@@ -10,26 +10,30 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
 web = Flask(__name__)
+
 
 @web.route("/")
 def home():
-    return "Web Demo Generator is running"
+    return "✅ Web Demo Generator is running"
+
 
 @web.route("/health")
 def health():
     return "OK"
 
+
 def run_web():
     port = int(os.getenv("PORT", 10000))
     web.run(host="0.0.0.0", port=port)
+
 
 def github_headers():
     return {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
+
 
 def create_repo(repo_name):
     url = "https://api.github.com/user/repos"
@@ -38,7 +42,9 @@ def create_repo(repo_name):
         "auto_init": True,
         "private": False
     }
-    return requests.post(url, headers=github_headers(), json=data).json()
+    response = requests.post(url, headers=github_headers(), json=data)
+    return response.json()
+
 
 def upload_file(repo_name, content):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/contents/index.html"
@@ -51,7 +57,9 @@ def upload_file(repo_name, content):
         "branch": "main"
     }
 
-    return requests.put(url, headers=github_headers(), json=data).json()
+    response = requests.put(url, headers=github_headers(), json=data)
+    return response.json()
+
 
 def enable_pages(repo_name):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/pages"
@@ -61,30 +69,49 @@ def enable_pages(repo_name):
             "path": "/"
         }
     }
-    return requests.post(url, headers=github_headers(), json=data).json()
+    response = requests.post(url, headers=github_headers(), json=data)
+    return response.json()
 
-@bot.message_handler(commands=["start"])
-def start(message):
-    bot.reply_to(
-        message,
-        "✅ HTML fayl yuboring. Men uni jonli demo saytga aylantirib beraman."
-    )
 
-@bot.message_handler(content_types=["document"])
-def handle_document(message):
+def prepare_html(content):
+    content = content.strip()
+
+    if "<html" in content.lower() or "<!doctype html" in content.lower():
+        return content
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Demo</title>
+</head>
+<body>
+{content}
+</body>
+</html>"""
+
+
+def make_repo_name(user_id):
+    return f"demo-{user_id}"
+
+
+def process_html(message, content):
     try:
-        file_info = bot.get_file(message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
+        html_content = prepare_html(content)
+        repo_name = make_repo_name(message.from_user.id)
 
-        content = downloaded_file.decode("utf-8", errors="ignore")
+        bot.send_message(message.chat.id, "⏳ GitHub repo yaratilyapti...")
+        repo_result = create_repo(repo_name)
 
-        repo_name = f"demo-{message.from_user.id}"
+        if "message" in repo_result and "already exists" in repo_result["message"].lower():
+            bot.send_message(message.chat.id, "ℹ️ Repo oldin yaratilgan. Fayl yangilanmoqda...")
 
-        bot.reply_to(message, "⏳ GitHub repo yaratilyapti...")
-        create_repo(repo_name)
+        bot.send_message(message.chat.id, "📤 HTML GitHub'ga yuklanyapti...")
+        upload_result = upload_file(repo_name, html_content)
 
-        bot.send_message(message.chat.id, "📤 HTML fayl yuklanyapti...")
-        upload_file(repo_name, content)
+        if "message" in upload_result and "sha" in upload_result["message"].lower():
+            bot.send_message(message.chat.id, "⚠️ Fayl oldin mavjud. Hozircha yangi repo nomi kerak bo‘lishi mumkin.")
 
         bot.send_message(message.chat.id, "🚀 GitHub Pages yoqilyapti...")
         enable_pages(repo_name)
@@ -93,15 +120,49 @@ def handle_document(message):
 
         bot.send_message(
             message.chat.id,
-            f"✅ Tayyor!\n\nSizning demo saytingiz:\n{link}\n\n⏳ Link 1-2 daqiqada ochilishi mumkin."
+            f"✅ Tayyor!\n\nSizning demo saytingiz:\n{link}\n\n⏳ Link 1–2 daqiqada ochilishi mumkin."
         )
 
     except Exception as e:
-        bot.reply_to(message, f"❌ Xato chiqdi:\n{e}")
+        bot.send_message(message.chat.id, f"❌ Xato chiqdi:\n{e}")
 
-@bot.message_handler(func=lambda message: True)
-def other(message):
-    bot.reply_to(message, "Iltimos, HTML fayl yuboring.")
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.reply_to(
+        message,
+        "✅ Web Demo Generator ishga tushdi.\n\n"
+        "Menga HTML kodni oddiy xabar qilib yuboring yoki .html fayl yuboring.\n\n"
+        "Men uni jonli demo saytga aylantirib beraman."
+    )
+
+
+@bot.message_handler(content_types=["document"])
+def handle_document(message):
+    try:
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        content = downloaded_file.decode("utf-8", errors="ignore")
+
+        process_html(message, content)
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Faylni o‘qishda xato:\n{e}")
+
+
+@bot.message_handler(content_types=["text"])
+def handle_text(message):
+    text = message.text.strip()
+
+    if text.startswith("/"):
+        return
+
+    if len(text) < 10:
+        bot.reply_to(message, "Iltimos, HTML kod yoki .html fayl yuboring.")
+        return
+
+    process_html(message, text)
+
 
 if __name__ == "__main__":
     threading.Thread(target=run_web, daemon=True).start()
