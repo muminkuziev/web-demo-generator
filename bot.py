@@ -1,15 +1,20 @@
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import asyncio
+from telegram.ext import ApplicationBuilder, CommandHandler
 
-TOKEN = "8897379935:AAEsHaBuTAsJKWMRC1aylopO5YCDvGzFUj4"
+BOT_TOKEN = "8948309691:AAFajuDxUjVEYW4kNrvzvxbuVsXusEh0oHc"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🚀 Web Demo Generator ishga tushdi!"
-    )
+async def start(update, context):
+    await update.message.reply_text("✅ Web Demo Generator bot ishlayapti!")
 
-app = Application.builder().token(TOKEN).build()
+async def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
 
-app.add_handler(CommandHandler("start", start))
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
 
-app.run_polling()
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
